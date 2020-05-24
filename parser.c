@@ -55,7 +55,8 @@ lval* lval_err(char* m)
 {
     lval* v = malloc(sizeof(lval));
     v->type = LVAL_ERR;
-    v->err = m;
+    v->err = malloc(strlen(m) + 1);
+    strcpy(v->err, m);
     return v;
 }
 
@@ -278,9 +279,9 @@ lval* lval_eval_sexpr(lval* v) {
 }
 
 lval* builtin_head(lval* a) {
-    LASSERT(a, a->count != 1, "Func 'head' passed to many arguments!");
-    LASSERT(a, a->cell[0]->type != LVAL_QEXPR, "Func 'head' passed incorrect types!");
-    LASSERT(a, a->cell[0]->count == 0, "Func 'head' passed {}!");
+    LASSERT(a, a->count == 1, "Func 'head' passed too many arguments!");
+    LASSERT(a, a->cell[0]->type == LVAL_QEXPR, "Func 'head' passed incorrect types!");
+    LASSERT(a, a->cell[0]->count != 0, "Func 'head' passed {}!");
 
     // Take the first argument
     lval* v = lval_take(a, 0);
@@ -293,9 +294,9 @@ lval* builtin_head(lval* a) {
 }
 
 lval* builtin_tail(lval* a) {
-    LASSERT(a, a->count != 1, "Func 'tail' passed too many arguments");
-    LASSERT(a, a->cell[0]->type != LVAL_QEXPR, "Func 'tail' passed incorrect type");
-    LASSERT(a, a->cell[0]->count == 0, "Func 'tail' passed {}");
+    LASSERT(a, a->count == 1, "Func 'tail' passed too many arguments");
+    LASSERT(a, a->cell[0]->type == LVAL_QEXPR, "Func 'tail' passed incorrect type");
+    LASSERT(a, a->cell[0]->count != 0, "Func 'tail' passed {}");
 
     // Take first argument and only argument from a as a contains only one qexpr
     lval* v = lval_take(a, 0);
@@ -311,8 +312,8 @@ lval* builtin_list(lval* a) {
 }
 
 lval* builtin_eval(lval* a) {
-    LASSERT(a, a->count != 1, "Func 'eval' passed too many arguments");
-    LASSERT(a, a->cell[0]->type != LVAL_QEXPR, "Func 'eval' passed incorrect type");
+    LASSERT(a, a->count == 1, "Func 'eval' passed too many arguments");
+    LASSERT(a, a->cell[0]->type == LVAL_QEXPR, "Func 'eval' passed incorrect type");
 
     lval* v = lval_take(a, 0);
     v->type = LVAL_SEXPR;
@@ -391,9 +392,6 @@ int main(int argc, char **argv)
         mpc_result_t r;
         if (mpc_parse("<stdin>", input, lispy, &r))
         {
-            // Print the whole expression
-            // mpc_ast_print(r.output);
-
             lval* x = lval_eval(lval_read(r.output));
             lval_println(x);
             lval_del(x);
