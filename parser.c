@@ -271,7 +271,7 @@ lval* lenv_get(lenv* e, lval* k) {
 // Define local variable
 void lenv_put(lenv* e, lval* k, lval* v) {
     for (int i = 0; i < e->count; i++) {
-        // If variable is found the delete item at that position
+        // If variable is found, delete item at that position
         // Replace with a copy of user-supplied one.
         if (strcmp(e->syms[i], k->sym) == 0) {
             lval_del(e->vals[i]);
@@ -358,14 +358,50 @@ lval* lval_call(lenv* env, lval* f, lval* a) {
         return f->builtin_func(env, a);
     }
 
-    for (int i = 0; i < a->count; i++) {
-        lenv_put(f->env, f->formals->cell[i], a->cell[i]);
+    // Record Argument Counts
+    int given = a->count;
+    int total = f->formals->count;
+
+    // While arguments still remain to be processed
+    while (a->count) {
+        // if re're ran out of formal arguments to bind
+        if (f->formals->count == 0) {
+            lval_del(a);
+            return lval_err(
+                "Function passed too many parguments. "
+                "Got %i, Expected %i.", given, total);
+        }
+
+        // Pop the first symbol from the formals
+        lval* sym = lval_pop(f->formals, 0);
+
+        // Pop the next argument from the list
+        lval* val = lval_pop(a, 0);
+
+        // Bind a copy into the function's environment
+        lenv_put(f->env, sym, val);
+
+        lval_del(sym);
+        lval_del(val);
     }
 
+    // Argument list is now bound so can be cleaned up
     lval_del(a);
 
-    f->env->parent = env;
-    return builtin_eval(f->env, lval_add(lval_sexpr(), lval_copy(f->body)));
+    // If all formals have been bound evaluate
+    if (f->formals->count == 0) {
+        // Set environment parent to evaluation environment
+        f->env->parent = env;
+
+        // Evaluate and return
+        return builtin_eval(
+            f->env, lval_add(lval_sexpr(), lval_copy(f->body))
+        );
+    }
+    else {
+        // Otherwise return partially evaluated function
+        return lval_copy(f);
+    }
 }
 
 void lval_expr_print(lval* v, char open, char close) {
@@ -506,14 +542,17 @@ lval* lval_eval_sexpr(lenv* environment, lval* v) {
     // Ensure first element is a function after evaluation
     lval* lval_func = lval_pop(v, 0);
     if (lval_func->type != LVAL_FUNC) {
+        lval* err = lval_err(
+            "S-Expression starts with incorrect type. "
+            "Got %s, Expected %s.",
+            ltype_name(lval_func->type), ltype_name(LVAL_FUNC)
+        );
         lval_del(lval_func);
         lval_del(v);
-        return lval_err("first element is not a function!");
+        return err;
     }
 
-    lval* result = lval_func->builtin_func(environment, v);
-    lval_del(lval_func);
-    return result;
+    lval* result = lval_call(environment, lval_func, v);
 }
 
 lval* builtin_head(lenv* e, lval* a) {
@@ -638,7 +677,7 @@ lval* builtin_var(lenv* env, lval* a, char* func) {
             ltype_name(LVAL_SYM));
     }
 
-    LASSERT(a, (syms->count == a->count -1), 
+    LASSERT(a, (syms->count == a->count-1), 
         "Function '%s' passed too many arguments for symbols. "
         "Got %i, Expected %i.", func, syms->count, a->count-1);
 
@@ -673,6 +712,7 @@ void lenv_add_builtins(lenv* environment) {
     lenv_add_builtin(environment, "join", builtin_join);
     lenv_add_builtin(environment, "eval", builtin_eval);
     lenv_add_builtin(environment, "def", builtin_def);
+    lenv_add_builtin(environment, "=", builtin_put);
     lenv_add_builtin(environment, "\\", builtin_lambda);
 
     lenv_add_builtin(environment, "+", builtin_add);
