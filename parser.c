@@ -112,6 +112,7 @@ lval* lval_eval_sexpr(lenv* e, lval* v);
 void lenv_del(lenv* e);
 lenv* lenv_new(void);
 lval* builtin(lval* a, char* func);
+lval* lval_pop(lval* v, int index);
 
 char* ltype_name(enum LVAL_TYPE t) {
     switch(t) {
@@ -554,6 +555,8 @@ lval* lval_eval_sexpr(lenv* environment, lval* v) {
     }
 
     lval* result = lval_call(environment, lval_func, v);
+    lval_del(lval_func);
+    return result;
 }
 
 lval* builtin_head(lenv* e, lval* a) {
